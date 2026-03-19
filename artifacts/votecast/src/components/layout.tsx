@@ -1,54 +1,56 @@
 import { Link, useLocation } from "wouter";
-import { Shield, ChevronRight } from "lucide-react";
+import { Vote } from "lucide-react";
 import { ReactNode } from "react";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
+  const isAdmin = location.startsWith("/admin");
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground selection:bg-primary selection:text-white">
-      {/* Heavy, industrial Navbar */}
-      <header className="sticky top-0 z-50 w-full border-b-4 border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      {/* Clean top navbar */}
+      <header className="sticky top-0 z-50 w-full border-b-2 border-border bg-black/95 backdrop-blur">
+        <div className="container mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3 group">
-            <div className="bg-primary text-white p-2 transform -skew-x-12 group-hover:scale-110 transition-transform duration-300">
-              <Shield className="w-6 h-6 sm:w-8 sm:h-8" strokeWidth={3} />
+            <div className="bg-primary text-white p-2 group-hover:scale-110 transition-transform duration-200">
+              <Vote className="w-5 h-5" strokeWidth={2.5} />
             </div>
-            <span className="font-display text-3xl sm:text-4xl tracking-wider uppercase mt-1">
+            <span className="font-display text-2xl sm:text-3xl tracking-wide uppercase">
               Vote<span className="text-primary">Cast</span>
             </span>
           </Link>
-          
-          <nav className="flex items-center gap-6">
-            <Link 
-              href="/admin" 
-              className={`font-sans font-bold uppercase tracking-wider text-sm sm:text-base flex items-center gap-1 transition-colors duration-200 ${
-                location.startsWith('/admin') ? 'text-primary' : 'text-muted-foreground hover:text-white'
-              }`}
-            >
-              Admin <ChevronRight className="w-4 h-4 opacity-50" />
-            </Link>
+
+          <nav className="flex items-center gap-1">
+            {!isAdmin ? (
+              <Link
+                href="/admin"
+                className="text-muted-foreground hover:text-white text-sm font-bold uppercase tracking-widest px-4 py-2 border border-transparent hover:border-border transition-all"
+              >
+                Organizer Login
+              </Link>
+            ) : (
+              <Link
+                href="/"
+                className="text-muted-foreground hover:text-white text-sm font-bold uppercase tracking-widest px-4 py-2 border border-transparent hover:border-border transition-all"
+              >
+                ← Back to Home
+              </Link>
+            )}
           </nav>
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col relative z-10">
+      <main className="flex-1 flex flex-col">
         {children}
       </main>
 
-      {/* Brutalist Footer */}
-      <footer className="border-t border-border bg-card py-12 mt-auto">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-3">
-            <Shield className="w-6 h-6 text-muted-foreground" />
-            <span className="font-display text-2xl text-muted-foreground tracking-widest">
-              VOTECAST
-            </span>
+      <footer className="border-t border-border bg-card py-8 mt-auto">
+        <div className="container mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-4 text-muted-foreground text-sm">
+          <div className="flex items-center gap-2">
+            <Vote className="w-4 h-4" />
+            <span className="font-display text-lg tracking-widest">VOTECAST</span>
           </div>
-          <p className="text-muted-foreground font-sans text-sm font-medium uppercase tracking-widest">
-            Fair Conduct. Ironclad Results.
-          </p>
+          <p className="font-sans uppercase tracking-widest text-xs">Fair elections, transparent results.</p>
         </div>
       </footer>
     </div>
