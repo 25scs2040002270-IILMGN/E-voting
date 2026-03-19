@@ -10,6 +10,7 @@ export interface UpdateElectionRequest {
   name?: string;
   description?: string;
   collegeName?: string;
+  openEnrollment?: boolean;
   votingStartsAt?: Date | null;
   votingEndsAt?: Date | null;
 }

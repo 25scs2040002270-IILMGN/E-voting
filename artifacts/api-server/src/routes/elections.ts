@@ -32,6 +32,7 @@ function electionToResponse(
     collegeName: election.collegeName,
     status: election.status,
     adminPasscode: election.adminPasscode,
+    openEnrollment: election.openEnrollment,
     votingStartsAt: election.votingStartsAt?.toISOString() ?? null,
     votingEndsAt: election.votingEndsAt?.toISOString() ?? null,
     createdAt: election.createdAt.toISOString(),
@@ -116,7 +117,7 @@ router.get("/elections/:electionId", async (req, res) => {
 
 router.put("/elections/:electionId", async (req, res) => {
   const electionId = parseInt(req.params.electionId);
-  const { name, description, collegeName, votingStartsAt, votingEndsAt } = req.body;
+  const { name, description, collegeName, votingStartsAt, votingEndsAt, openEnrollment } = req.body;
 
   const [election] = await db
     .update(electionsTable)
@@ -124,6 +125,7 @@ router.put("/elections/:electionId", async (req, res) => {
       ...(name && { name }),
       ...(description !== undefined && { description }),
       ...(collegeName && { collegeName }),
+      ...(openEnrollment !== undefined && { openEnrollment }),
       ...(votingStartsAt !== undefined && {
         votingStartsAt: votingStartsAt ? new Date(votingStartsAt) : null,
       }),
@@ -139,7 +141,15 @@ router.put("/elections/:electionId", async (req, res) => {
     res.status(404).json({ error: "Election not found" });
     return;
   }
-  await addAuditLog(electionId, "ELECTION_UPDATED", `Election details updated`);
+  if (openEnrollment !== undefined) {
+    await addAuditLog(
+      electionId,
+      "OPEN_ENROLLMENT_TOGGLED",
+      `Open enrollment ${openEnrollment ? "enabled" : "disabled"} — any student with a university ID can vote`
+    );
+  } else {
+    await addAuditLog(electionId, "ELECTION_UPDATED", `Election details updated`);
+  }
   const counts = await getElectionCounts(electionId);
   res.json(electionToResponse(election, counts.totalVoters, counts.totalVotesCast));
 });
@@ -562,10 +572,20 @@ router.post("/elections/:electionId/voters/bulk", async (req, res) => {
 
 router.post("/elections/:electionId/check-voter", async (req, res) => {
   const electionId = parseInt(req.params.electionId);
-  const { voterId } = req.body;
+  const { voterId, name } = req.body;
 
   if (!voterId) {
     res.status(400).json({ error: "voterId is required" });
+    return;
+  }
+
+  const [election] = await db
+    .select()
+    .from(electionsTable)
+    .where(eq(electionsTable.id, electionId));
+
+  if (!election) {
+    res.status(404).json({ error: "Election not found" });
     return;
   }
 
@@ -577,6 +597,27 @@ router.post("/elections/:electionId/check-voter", async (req, res) => {
     );
 
   if (!voter) {
+    // If open enrollment is enabled, auto-register this student
+    if (election.openEnrollment) {
+      const voterName = name?.trim() || voterId;
+      const [newVoter] = await db
+        .insert(votersTable)
+        .values({ electionId, voterId, name: voterName })
+        .returning();
+      await addAuditLog(
+        electionId,
+        "VOTER_AUTO_REGISTERED",
+        `Voter "${voterName}" (${voterId}) auto-registered via open enrollment`
+      );
+      res.json({
+        isRegistered: true,
+        hasVoted: newVoter.hasVoted,
+        voterId: newVoter.voterId,
+        name: newVoter.name,
+        autoRegistered: true,
+      });
+      return;
+    }
     res.json({ isRegistered: false, hasVoted: false, voterId });
     return;
   }

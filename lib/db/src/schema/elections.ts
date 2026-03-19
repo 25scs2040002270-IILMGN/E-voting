@@ -17,6 +17,7 @@ export const electionsTable = pgTable("elections", {
   collegeName: text("college_name").notNull(),
   status: electionStatusEnum("status").notNull().default("draft"),
   adminPasscode: text("admin_passcode").notNull(),
+  openEnrollment: boolean("open_enrollment").notNull().default(false),
   votingStartsAt: timestamp("voting_starts_at"),
   votingEndsAt: timestamp("voting_ends_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

@@ -14,6 +14,7 @@ export interface Election {
   collegeName: string;
   status: ElectionStatus;
   adminPasscode?: string;
+  openEnrollment: boolean;
   votingStartsAt?: Date | null;
   votingEndsAt?: Date | null;
   createdAt: Date;

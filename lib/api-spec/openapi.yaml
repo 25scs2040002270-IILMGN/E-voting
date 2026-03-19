@@ -485,6 +485,8 @@ components:
           enum: [draft, nomination, voting, results, closed]
         adminPasscode:
           type: string
+        openEnrollment:
+          type: boolean
         votingStartsAt:
           type: string
           format: date-time
@@ -508,6 +510,7 @@ components:
         - name
         - collegeName
         - status
+        - openEnrollment
         - createdAt
         - updatedAt
         - totalVoters
@@ -546,6 +549,8 @@ components:
           type: string
         collegeName:
           type: string
+        openEnrollment:
+          type: boolean
         votingStartsAt:
           type: string
           format: date-time

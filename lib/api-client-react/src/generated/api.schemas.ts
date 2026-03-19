@@ -35,6 +35,7 @@ export interface Election {
   collegeName: string;
   status: ElectionStatus;
   adminPasscode?: string;
+  openEnrollment: boolean;
   votingStartsAt?: string | null;
   votingEndsAt?: string | null;
   createdAt: string;
@@ -56,6 +57,7 @@ export interface UpdateElectionRequest {
   name?: string;
   description?: string;
   collegeName?: string;
+  openEnrollment?: boolean;
   votingStartsAt?: string | null;
   votingEndsAt?: string | null;
 }

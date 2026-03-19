@@ -21,6 +21,7 @@ export default function VotePage() {
   const checkVoter = useCheckVoterStatus();
 
   const [voterId, setVoterId] = useState("");
+  const [voterName, setVoterName] = useState("");
   const [voterInfo, setVoterInfo] = useState<any>(null);
   const [inputError, setInputError] = useState("");
 
@@ -60,12 +61,20 @@ export default function VotePage() {
     );
   }
 
+  const isOpenEnrollment = election.openEnrollment;
+
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!voterId.trim()) return;
     setInputError("");
     try {
-      const res = await checkVoter.mutateAsync({ electionId, data: { voterId: voterId.trim().toUpperCase() } });
+      const res = await checkVoter.mutateAsync({
+        electionId,
+        data: {
+          voterId: voterId.trim().toUpperCase(),
+          ...(voterName.trim() ? { name: voterName.trim() } : {}),
+        },
+      });
       if (!res.isRegistered) {
         setInputError("This ID is not registered for this election. Please check with your organizer.");
         return;
