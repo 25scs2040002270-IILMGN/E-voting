@@ -1,0 +1,15 @@
+packages:
+  "framer-motion": "For buttery smooth, athletic-feeling layout animations and transitions"
+  "date-fns": "For formatting election dates and audit logs beautifully"
+  "clsx": "Utility for constructing className strings"
+  "tailwind-merge": "Utility for merging tailwind classes"
+
+images:
+  - path: "artifacts/votecast/public/images/hero-mesh.png"
+    description: "Dark, gritty, high-contrast abstract athletic mesh texture with subtle crimson red accents, dramatic lighting, 8k resolution"
+    aspect_ratio: "16:9"
+
+notes:
+  - Using generated API hooks from @workspace/api-client-react
+  - Admin auth state (passcode) is persisted in localStorage per election ID
+  - Using wouter for routing with base URL support
