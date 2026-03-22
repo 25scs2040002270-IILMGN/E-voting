@@ -1,9 +1,10 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   useGetElection,
   useUpdateElection,
   useUpdateElectionStatus,
+  useDeleteElection,
   useListPosts,
   useCreatePost,
   useDeletePost,
@@ -22,8 +23,17 @@ import { format } from "date-fns";
 import {
   Lock, Trash2, Plus, Users, Vote, BarChart3, ClipboardList,
   CheckCircle2, Circle, ChevronRight, ExternalLink, Upload,
-  Globe, AlertCircle, FileText, ArrowRight
+  Globe, AlertCircle, FileText, ArrowRight, ShieldAlert
 } from "lucide-react";
+
+// Invisible component: fetches candidate count for a post and reports to parent
+function PostCandidateChecker({ postId, onCount }: { postId: number; onCount: (postId: number, count: number) => void }) {
+  const { data } = useListCandidates(postId);
+  useEffect(() => {
+    if (data !== undefined) onCount(postId, data.length);
+  }, [data, postId]);
+  return null;
+}
 
 const STATUS_FLOW = [
   { key: "draft",      label: "Setting Up",       desc: "Add positions and candidates." },
@@ -57,9 +67,14 @@ export default function AdminDashboard() {
   const postsReady = (posts?.length ?? 0) > 0;
   const votersReady = election?.openEnrollment === true || (voters?.length ?? 0) > 0;
 
-  // For candidates ready: we need to know if all posts have at least 1 candidate.
-  // We'll track this in the CandidatesStep component itself and pass it up.
-  const [candidatesReady, setCandidatesReady] = useState(false);
+  // Track candidate counts per post — initialized by PostCandidateChecker components
+  const [postCandidateCounts, setPostCandidateCounts] = useState<Record<number, number>>({});
+  const handleCandidateCount = useCallback((postId: number, count: number) => {
+    setPostCandidateCounts(prev => ({ ...prev, [postId]: count }));
+  }, []);
+
+  const candidatesReady = (posts?.length ?? 0) > 0 &&
+    (posts ?? []).every(p => (postCandidateCounts[p.id] ?? 0) > 0);
 
   const STEPS = [
     {
@@ -217,6 +232,11 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {/* Hidden checkers — always active, query candidate counts for all posts */}
+      {(posts ?? []).map(p => (
+        <PostCandidateChecker key={p.id} postId={p.id} onCount={handleCandidateCount} />
+      ))}
+
       {/* Step Content */}
       <div className="container mx-auto px-4 max-w-4xl py-10">
         {activeStep === 0 && (
@@ -231,7 +251,8 @@ export default function AdminDashboard() {
           <CandidatesStep
             electionId={electionId}
             posts={posts ?? []}
-            onCandidatesReady={setCandidatesReady}
+            postCandidateCounts={postCandidateCounts}
+            onCandidateCountChange={handleCandidateCount}
             onNext={() => setActiveStep(2)}
           />
         )}
@@ -251,6 +272,7 @@ export default function AdminDashboard() {
             statusIndex={statusIndex}
             allDone={allStepsDone}
             onUpdate={refetchElection}
+            onDelete={() => setLocation("/")}
           />
         )}
       </div>
@@ -374,17 +396,18 @@ function PostsStep({ electionId, posts, onPostsChange, onNext }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // STEP 2: Candidates
 // ─────────────────────────────────────────────────────────────────────────────
-function CandidatesStep({ electionId, posts, onCandidatesReady, onNext }: {
-  electionId: number; posts: any[]; onCandidatesReady: (ready: boolean) => void; onNext: () => void;
+function CandidatesStep({ electionId, posts, postCandidateCounts, onCandidateCountChange, onNext }: {
+  electionId: number;
+  posts: any[];
+  postCandidateCounts: Record<number, number>;
+  onCandidateCountChange: (postId: number, count: number) => void;
+  onNext: () => void;
 }) {
   const [selectedPostId, setSelectedPostId] = useState<number | null>(posts[0]?.id ?? null);
   const { data: candidates, refetch } = useListCandidates(selectedPostId ?? 0, { query: { enabled: !!selectedPostId } });
   const createMutation = useCreateCandidate();
   const deleteMutation = useDeleteCandidate();
   const [form, setForm] = useState({ name: "", rollNumber: "", department: "", year: "", manifesto: "" });
-
-  // Track per-post candidate counts to determine step completion
-  const [postCandidateCounts, setPostCandidateCounts] = useState<Record<number, number>>({});
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -393,23 +416,14 @@ function CandidatesStep({ electionId, posts, onCandidatesReady, onNext }: {
     setForm({ name: "", rollNumber: "", department: "", year: "", manifesto: "" });
     refetch().then(res => {
       const count = res.data?.length ?? 0;
-      setPostCandidateCounts(prev => {
-        const updated = { ...prev, [selectedPostId]: count };
-        onCandidatesReady(posts.every(p => (updated[p.id] ?? 0) > 0));
-        return updated;
-      });
+      onCandidateCountChange(selectedPostId, count);
     });
   };
 
   const handleRefetchAndCount = () => {
     refetch().then(res => {
       if (!selectedPostId) return;
-      const count = res.data?.length ?? 0;
-      setPostCandidateCounts(prev => {
-        const updated = { ...prev, [selectedPostId]: count };
-        onCandidatesReady(posts.every(p => (updated[p.id] ?? 0) > 0));
-        return updated;
-      });
+      onCandidateCountChange(selectedPostId, res.data?.length ?? 0);
     });
   };
 
@@ -870,11 +884,24 @@ function VotersStep({ electionId, election, voters, onVotersChange, onNext }: {
 // ─────────────────────────────────────────────────────────────────────────────
 // STEP 4: Launch
 // ─────────────────────────────────────────────────────────────────────────────
-function LaunchStep({ election, passcode, statusIndex, allDone, onUpdate }: {
-  election: any; passcode: string; statusIndex: number; allDone: boolean; onUpdate: () => void;
+function LaunchStep({ election, passcode, statusIndex, allDone, onUpdate, onDelete }: {
+  election: any; passcode: string; statusIndex: number; allDone: boolean; onUpdate: () => void; onDelete: () => void;
 }) {
   const statusMutation = useUpdateElectionStatus();
+  const deleteMutation = useDeleteElection();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteInput, setDeleteInput] = useState("");
   const { data: logs } = useGetAuditLog(election.id);
+
+  const handleDelete = async () => {
+    if (deleteInput !== election.name) return;
+    try {
+      await deleteMutation.mutateAsync({ electionId: election.id });
+      onDelete();
+    } catch {
+      alert("Could not delete the election. Please try again.");
+    }
+  };
 
   const handleStatus = async (newStatus: StatusKey) => {
     const info = STATUS_FLOW.find(s => s.key === newStatus);
@@ -988,6 +1015,49 @@ function LaunchStep({ election, passcode, statusIndex, allDone, onUpdate }: {
                 </time>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Danger Zone */}
+      <div className="mt-16 border-2 border-destructive/30 p-6">
+        <div className="flex items-start gap-3 mb-4">
+          <ShieldAlert className="w-5 h-5 text-destructive mt-0.5 flex-shrink-0" />
+          <div>
+            <h3 className="font-display text-xl text-destructive">Danger Zone</h3>
+            <p className="text-muted-foreground font-sans text-sm mt-1">
+              Permanently delete this election and all its data — candidates, votes, and audit logs. This cannot be undone.
+            </p>
+          </div>
+        </div>
+        {!showDeleteConfirm ? (
+          <button onClick={() => setShowDeleteConfirm(true)}
+            className="border-2 border-destructive text-destructive font-bold uppercase tracking-wider text-sm px-5 py-2.5 hover:bg-destructive hover:text-white transition-all flex items-center gap-2">
+            <Trash2 className="w-4 h-4" /> Delete Election
+          </button>
+        ) : (
+          <div className="bg-destructive/5 border border-destructive/30 p-5 space-y-4">
+            <p className="font-sans text-sm text-white">
+              Type the election name exactly to confirm: <span className="font-bold text-destructive font-mono">{election.name}</span>
+            </p>
+            <input
+              value={deleteInput}
+              onChange={e => setDeleteInput(e.target.value)}
+              placeholder="Type election name here…"
+              className="w-full bg-background border-2 border-destructive/50 px-4 py-3 text-white font-sans text-sm focus:border-destructive focus:outline-none"
+            />
+            <div className="flex gap-3">
+              <button onClick={handleDelete}
+                disabled={deleteInput !== election.name || deleteMutation.isPending}
+                className="bg-destructive text-white font-bold uppercase tracking-wider px-5 py-2.5 text-sm hover:bg-destructive/90 transition-all disabled:opacity-40 flex items-center gap-2">
+                <Trash2 className="w-4 h-4" />
+                {deleteMutation.isPending ? "Deleting…" : "Yes, Delete Forever"}
+              </button>
+              <button onClick={() => { setShowDeleteConfirm(false); setDeleteInput(""); }}
+                className="border-2 border-border text-muted-foreground font-bold uppercase tracking-wider px-5 py-2.5 text-sm hover:border-white hover:text-white transition-all">
+                Cancel
+              </button>
+            </div>
           </div>
         )}
       </div>

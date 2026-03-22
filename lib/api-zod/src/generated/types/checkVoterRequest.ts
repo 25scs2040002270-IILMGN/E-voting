@@ -8,4 +8,6 @@
 
 export interface CheckVoterRequest {
   voterId: string;
+  /** Optional voter name for open enrollment auto-registration */
+  name?: string;
 }

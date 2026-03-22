@@ -378,6 +378,10 @@ export const CheckVoterStatusParams = zod.object({
 
 export const CheckVoterStatusBody = zod.object({
   voterId: zod.string(),
+  name: zod
+    .string()
+    .optional()
+    .describe("Optional voter name for open enrollment auto-registration"),
 });
 
 export const CheckVoterStatusResponse = zod.object({

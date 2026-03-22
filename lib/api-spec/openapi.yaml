@@ -816,6 +816,9 @@ components:
       properties:
         voterId:
           type: string
+        name:
+          type: string
+          description: Optional voter name for open enrollment auto-registration
       required:
         - voterId
 
