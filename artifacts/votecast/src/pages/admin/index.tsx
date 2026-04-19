@@ -4,7 +4,7 @@ import { useListElections, useCreateElection } from "@workspace/api-client-react
 import { Layout } from "@/components/layout";
 import { ScreenLoader } from "@/components/ui-custom";
 import {
-  Settings, Plus, ArrowRight, Vote, Users, ChevronRight,
+  Settings, Plus, Vote, Users, ChevronRight,
   X, Eye, EyeOff, UserCircle2, Lock, CheckCircle2
 } from "lucide-react";
 
@@ -24,18 +24,32 @@ const STATUS_COLOR: Record<string, string> = {
   closed:     "text-gray-500",
 };
 
-const ORGANIZER_NAME_KEY = "votecast_organizer_name";
-const ORGANIZER_PASS_KEY = "votecast_organizer_password";
+// Profile is stored permanently. Session is only for the current browser session.
+const NAME_KEY    = "votecast_organizer_name";
+const PASS_KEY    = "votecast_organizer_password";
+const SESSION_KEY = "votecast_organizer_session"; // sessionStorage
 
-function getOrganizerProfile() {
+function hasProfile() {
+  return !!(localStorage.getItem(NAME_KEY) && localStorage.getItem(PASS_KEY));
+}
+function isSessionActive() {
+  return sessionStorage.getItem(SESSION_KEY) === "1";
+}
+function startSession() {
+  sessionStorage.setItem(SESSION_KEY, "1");
+}
+function endSession() {
+  sessionStorage.removeItem(SESSION_KEY);
+}
+function getProfile() {
   return {
-    name: localStorage.getItem(ORGANIZER_NAME_KEY) ?? "",
-    password: localStorage.getItem(ORGANIZER_PASS_KEY) ?? "",
+    name: localStorage.getItem(NAME_KEY) ?? "",
+    password: localStorage.getItem(PASS_KEY) ?? "",
   };
 }
 
-// ─── Step 1: Organizer Setup ──────────────────────────────────────────────────
-function OrganizerSetupScreen({ onDone }: { onDone: () => void }) {
+// ─── Setup screen (first-time only) ──────────────────────────────────────────
+function SetupScreen({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -48,8 +62,9 @@ function OrganizerSetupScreen({ onDone }: { onDone: () => void }) {
     if (!name.trim()) { setError("Please enter your name."); return; }
     if (password.length < 4) { setError("Password must be at least 4 characters."); return; }
     if (password !== confirm) { setError("Passwords don't match."); return; }
-    localStorage.setItem(ORGANIZER_NAME_KEY, name.trim());
-    localStorage.setItem(ORGANIZER_PASS_KEY, password);
+    localStorage.setItem(NAME_KEY, name.trim());
+    localStorage.setItem(PASS_KEY, password);
+    startSession();
     onDone();
   };
 
@@ -57,32 +72,28 @@ function OrganizerSetupScreen({ onDone }: { onDone: () => void }) {
     <Layout>
       <div className="min-h-[85vh] flex items-center justify-center px-4">
         <div className="w-full max-w-md">
-          {/* Badge */}
           <div className="flex items-center gap-3 mb-8">
             <div className="w-14 h-14 bg-primary/10 border-2 border-primary/40 flex items-center justify-center">
               <UserCircle2 className="w-8 h-8 text-primary" />
             </div>
             <div>
-              <p className="text-primary font-bold uppercase tracking-widest text-xs">Organizer Setup</p>
+              <p className="text-primary font-bold uppercase tracking-widest text-xs">First Time Setup</p>
               <h1 className="font-display text-3xl leading-tight">Welcome, Organizer</h1>
             </div>
           </div>
 
           <p className="text-muted-foreground font-sans text-sm mb-8 leading-relaxed">
-            Before creating your election, set up your organizer identity. Your name and password will be used to manage all elections you create.
+            Set up your organizer profile. Your name and password will be used to log in and manage all elections you create.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Name */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
                 Your Name <span className="text-primary">*</span>
               </label>
               <input
-                required
-                autoFocus
-                value={name}
-                onChange={e => setName(e.target.value)}
+                required autoFocus
+                value={name} onChange={e => setName(e.target.value)}
                 placeholder="e.g. Prof. Ramesh Kumar"
                 className="w-full bg-background border-2 border-border px-4 py-3 font-sans text-white text-sm focus:border-primary focus:outline-none transition-colors"
               />
@@ -91,7 +102,6 @@ function OrganizerSetupScreen({ onDone }: { onDone: () => void }) {
               </p>
             </div>
 
-            {/* Password */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
                 Create Your Password <span className="text-primary">*</span>
@@ -100,8 +110,7 @@ function OrganizerSetupScreen({ onDone }: { onDone: () => void }) {
                 <input
                   required
                   type={showPass ? "text" : "password"}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  value={password} onChange={e => setPassword(e.target.value)}
                   placeholder="Min. 4 characters"
                   className="w-full bg-background border-2 border-border px-4 py-3 pr-12 font-sans text-white text-sm focus:border-primary focus:outline-none transition-colors"
                 />
@@ -112,7 +121,6 @@ function OrganizerSetupScreen({ onDone }: { onDone: () => void }) {
               </div>
             </div>
 
-            {/* Confirm password */}
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
                 Confirm Password <span className="text-primary">*</span>
@@ -121,8 +129,7 @@ function OrganizerSetupScreen({ onDone }: { onDone: () => void }) {
                 <input
                   required
                   type={showPass ? "text" : "password"}
-                  value={confirm}
-                  onChange={e => setConfirm(e.target.value)}
+                  value={confirm} onChange={e => setConfirm(e.target.value)}
                   placeholder="Type password again"
                   className={`w-full bg-background border-2 px-4 py-3 pr-12 font-sans text-white text-sm focus:outline-none transition-colors ${
                     confirm && confirm !== password ? "border-destructive" : "border-border focus:border-primary"
@@ -143,16 +150,89 @@ function OrganizerSetupScreen({ onDone }: { onDone: () => void }) {
             <div className="bg-primary/5 border border-primary/20 px-4 py-3 flex gap-3">
               <Lock className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
               <p className="text-muted-foreground font-sans text-xs leading-relaxed">
-                Remember this password — you'll need it every time you log in to manage your elections. There is no password recovery.
+                Remember this password — you'll need it every time you log in. There is no recovery option.
               </p>
             </div>
 
             <button
               type="submit"
               disabled={!name.trim() || password.length < 4 || password !== confirm}
-              className="w-full bg-primary text-white font-display text-xl uppercase tracking-wider py-4 hover:bg-primary/90 transition-all disabled:opacity-40 flex items-center justify-center gap-3"
+              className="w-full bg-primary text-white font-display text-xl uppercase tracking-wider py-4 hover:bg-primary/90 transition-all disabled:opacity-40"
             >
-              Continue <ArrowRight className="w-5 h-5" />
+              Continue →
+            </button>
+          </form>
+        </div>
+      </div>
+    </Layout>
+  );
+}
+
+// ─── Login screen (returning organizer) ──────────────────────────────────────
+function LoginScreen({ onDone }: { onDone: () => void }) {
+  const profile = getProfile();
+  const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === profile.password) {
+      startSession();
+      onDone();
+    } else {
+      setError("Incorrect password. Please try again.");
+      setPassword("");
+    }
+  };
+
+  return (
+    <Layout>
+      <div className="min-h-[85vh] flex items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-14 h-14 bg-primary/10 border-2 border-primary/40 flex items-center justify-center">
+              <Lock className="w-7 h-7 text-primary" />
+            </div>
+            <div>
+              <p className="text-primary font-bold uppercase tracking-widest text-xs">Organizer Login</p>
+              <h1 className="font-display text-3xl leading-tight">{profile.name}</h1>
+            </div>
+          </div>
+
+          <p className="text-muted-foreground font-sans text-sm mb-8">
+            Welcome back. Enter your password to access your elections.
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  required autoFocus
+                  type={showPass ? "text" : "password"}
+                  value={password} onChange={e => { setPassword(e.target.value); setError(""); }}
+                  placeholder="Enter your password"
+                  className={`w-full bg-background border-2 px-4 py-3 pr-12 font-sans text-white text-sm focus:outline-none transition-colors ${
+                    error ? "border-destructive" : "border-border focus:border-primary"
+                  }`}
+                />
+                <button type="button" tabIndex={-1} onClick={() => setShowPass(p => !p)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-white transition-colors">
+                  {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {error && <p className="text-destructive text-xs mt-2 font-sans">{error}</p>}
+            </div>
+
+            <button
+              type="submit"
+              disabled={!password}
+              className="w-full bg-primary text-white font-display text-xl uppercase tracking-wider py-4 hover:bg-primary/90 transition-all disabled:opacity-40"
+            >
+              Log In →
             </button>
           </form>
         </div>
@@ -167,30 +247,29 @@ export default function AdminLanding() {
   const { data: elections, isLoading } = useListElections();
   const createMutation = useCreateElection();
 
-  const profile = getOrganizerProfile();
-  const [isSetUp, setIsSetUp] = useState(!!(profile.name && profile.password));
+  const [authed, setAuthed] = useState(isSessionActive());
   const [showCreate, setShowCreate] = useState(false);
   const [electionName, setElectionName] = useState("");
   const [collegeName, setCollegeName] = useState("");
   const [description, setDescription] = useState("");
 
-  // Show setup screen if organizer hasn't set name/password yet
-  if (!isSetUp) {
-    return <OrganizerSetupScreen onDone={() => setIsSetUp(true)} />;
+  // First-time setup
+  if (!hasProfile()) {
+    return <SetupScreen onDone={() => setAuthed(true)} />;
   }
 
-  const org = getOrganizerProfile();
+  // Returning organizer — needs to log in
+  if (!authed) {
+    return <LoginScreen onDone={() => setAuthed(true)} />;
+  }
+
+  const org = getProfile();
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const newElection = await createMutation.mutateAsync({
-        data: {
-          name: electionName,
-          collegeName,
-          description,
-          adminPasscode: org.password,
-        },
+        data: { name: electionName, collegeName, description, adminPasscode: org.password },
       });
       localStorage.setItem(`votecast_admin_${newElection.id}`, org.password);
       setLocation(`/admin/${newElection.id}`);
@@ -216,13 +295,7 @@ export default function AdminLanding() {
               </p>
             </div>
             <button
-              onClick={() => {
-                if (confirm("Log out? You'll need your password to get back in.")) {
-                  localStorage.removeItem(ORGANIZER_NAME_KEY);
-                  localStorage.removeItem(ORGANIZER_PASS_KEY);
-                  setIsSetUp(false);
-                }
-              }}
+              onClick={() => { endSession(); setAuthed(false); }}
               className="text-muted-foreground text-xs font-bold uppercase tracking-widest border border-border px-3 py-2 hover:border-white hover:text-white transition-all"
             >
               Log Out
@@ -245,10 +318,8 @@ export default function AdminLanding() {
         {showCreate && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-card border-2 border-border w-full max-w-lg p-8 relative">
-              <button
-                onClick={() => setShowCreate(false)}
-                className="absolute top-4 right-4 text-muted-foreground hover:text-white transition-colors"
-              >
+              <button onClick={() => setShowCreate(false)}
+                className="absolute top-4 right-4 text-muted-foreground hover:text-white transition-colors">
                 <X className="w-6 h-6" />
               </button>
 
@@ -263,10 +334,8 @@ export default function AdminLanding() {
                     Election Name <span className="text-primary">*</span>
                   </label>
                   <input
-                    required
-                    autoFocus
-                    value={electionName}
-                    onChange={e => setElectionName(e.target.value)}
+                    required autoFocus
+                    value={electionName} onChange={e => setElectionName(e.target.value)}
                     placeholder="e.g. Student Council Election 2025"
                     className="w-full bg-background border-2 border-border px-4 py-3 font-sans text-white text-sm focus:border-primary focus:outline-none transition-colors"
                   />
@@ -278,8 +347,7 @@ export default function AdminLanding() {
                   </label>
                   <input
                     required
-                    value={collegeName}
-                    onChange={e => setCollegeName(e.target.value)}
+                    value={collegeName} onChange={e => setCollegeName(e.target.value)}
                     placeholder="e.g. Delhi Technological University"
                     className="w-full bg-background border-2 border-border px-4 py-3 font-sans text-white text-sm focus:border-primary focus:outline-none transition-colors"
                   />
@@ -290,26 +358,19 @@ export default function AdminLanding() {
                     Short Description <span className="text-muted-foreground">(optional)</span>
                   </label>
                   <input
-                    value={description}
-                    onChange={e => setDescription(e.target.value)}
+                    value={description} onChange={e => setDescription(e.target.value)}
                     placeholder="e.g. Annual student council elections"
                     className="w-full bg-background border-2 border-border px-4 py-3 font-sans text-white text-sm focus:border-primary focus:outline-none transition-colors"
                   />
                 </div>
 
                 <div className="flex gap-4 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreate(false)}
-                    className="flex-1 border-2 border-border text-muted-foreground font-bold uppercase tracking-wider py-3 hover:border-white hover:text-white transition-all"
-                  >
+                  <button type="button" onClick={() => setShowCreate(false)}
+                    className="flex-1 border-2 border-border text-muted-foreground font-bold uppercase tracking-wider py-3 hover:border-white hover:text-white transition-all">
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    disabled={createMutation.isPending}
-                    className="flex-1 bg-primary text-white font-bold uppercase tracking-wider py-3 hover:bg-primary/90 transition-all disabled:opacity-50"
-                  >
+                  <button type="submit" disabled={createMutation.isPending}
+                    className="flex-1 bg-primary text-white font-bold uppercase tracking-wider py-3 hover:bg-primary/90 transition-all disabled:opacity-50">
                     {createMutation.isPending ? "Creating…" : "Create Election →"}
                   </button>
                 </div>
@@ -362,7 +423,6 @@ export default function AdminLanding() {
           )}
         </div>
 
-        {/* Quick guide */}
         <div className="mt-12 border-l-4 border-primary pl-6 py-2">
           <h3 className="font-bold uppercase tracking-widest text-xs mb-3 text-muted-foreground">FIRST TIME? HERE'S WHAT TO DO:</h3>
           <ol className="space-y-2 text-muted-foreground font-sans text-sm list-decimal list-inside">
