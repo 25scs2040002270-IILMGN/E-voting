@@ -29,3 +29,4 @@ timeoutMs = 20000
 
 [userenv.shared]
 GITHUB_TOKEN = "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"
+RENDER_DATABASE_URL = "postgresql://e_votingdatabase_user:cFJdlS3LXvZENaIwdj9VuO7AoVpU6w1z@dpg-d7dp2bbeo5us73fqk950-a/e_votingdatabase"
